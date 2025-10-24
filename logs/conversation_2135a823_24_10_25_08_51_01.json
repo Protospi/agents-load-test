@@ -1,0 +1,146 @@
+{
+  "summary": {
+    "session_id": "2135a823-7164-457d-baff-dca3d930fa77",
+    "user_id": 2,
+    "user_data": {
+      "nome": "João Smart Talks",
+      "telefone": "554501152449",
+      "email": "farzquwn@smarttalks.com.br",
+      "cpf": "011.524.493-03"
+    },
+    "iterations": 13,
+    "found_link": true,
+    "total_messages": 26,
+    "timestamp": "2025-10-24 08:51:01",
+    "total_time_ms": 127749.0,
+    "voyager_tokens": {
+      "model": "gpt-4 (assumed)",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "cost_usd": 0.0,
+      "pricing": {
+        "input_per_1m_tokens": "$2.00",
+        "output_per_1m_tokens": "$8.00"
+      }
+    },
+    "gemini_tokens": {
+      "model": "gemini-2.5-flash",
+      "input_tokens": 13678,
+      "output_tokens": 226,
+      "total_tokens": 13904,
+      "cost_usd": 0.004668,
+      "pricing": {
+        "input_per_1m_tokens": "$0.30",
+        "output_per_1m_tokens": "$2.50"
+      }
+    },
+    "total_cost_usd": 0.004668
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Olá"
+    },
+    {
+      "role": "assistant",
+      "content": "Bom dia,\n\nSou a atendente virtual do Beach Park! 🏖️ 🌊 🛝\n\nSigo em constante treinamento para ampliar meus poderes e já consigo te ajudar com alguns temas 😉\n\nMas antes, me diga qual o seu nome por favor? 😊"
+    },
+    {
+      "role": "user",
+      "content": "Bom dia! Edman Smart 😉"
+    },
+    {
+      "role": "assistant",
+      "content": "Perfeito, Edman! Que ótimo receber você aqui. 😄\n\nVocê autoriza o envio de mensagens sobre ingressos e novidades do Beach Park? 📩"
+    },
+    {
+      "role": "user",
+      "content": "Sim, claro! Pode enviar 😊"
+    },
+    {
+      "role": "assistant",
+      "content": "Show, Edman! Obrigada pela autorização. 😁\n\nAqui no Beach Park posso te ajudar com:\n\n🎟️ Comprar ingressos  \n❓ Dúvidas sobre ingressos e parques  \n📅 Pós-venda (cancelamentos, remarcações, reembolsos)  \n🌦️ Informações de previsão do tempo\n\nComo posso te ajudar hoje? 😊"
+    },
+    {
+      "role": "user",
+      "content": "Quero comprar ingressos do Aqua Park, por favor! 🎟️🌴"
+    },
+    {
+      "role": "assistant",
+      "content": "Edman, uma escolha sensacional! O Aqua Park é pura diversão! 🌊🛝\n\nAqui estão as opções de ingresso disponíveis para você:\n\n- Ingresso Adulto 1 dia: R$ 320,00 (Pix: R$ 320,00)\n- Ingresso Criança 1 dia: R$ 310,00 (Pix: R$ 310,00)\n- Passaporte 2 dias: R$ 399,00\n- Passaporte Insano (acesso prolongado): R$ 469,00\n- Ingresso Idoso, Deficiente ou Gestante: R$ 160,00\n\nPara qual data você gostaria de comprar seu ingresso? Pode ser a partir de hoje ou para outro dia! 😉"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! 🤩 Poderia consultar a disponibilidade das datas pra mim, por favor?"
+    },
+    {
+      "role": "assistant",
+      "content": "Já consultei! 😄 Para os próximos dias, o Aqua Park tem ingressos disponíveis:\n\n- Hoje, 24/10/2025\n- Amanhã, 25/10/2025\n\nSe quiser outras datas específicas, é só me dizer qual ou quais está pensando em visitar. Assim consigo detalhar as opções pra você! Qual data você prefere? 🌞"
+    },
+    {
+      "role": "user",
+      "content": "Uhm, para o segundo sábado de novembro, por favor! Que seria 08/11/25 ou 09/11/2025, né? 🤔"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótima ideia, Edman! Para os dias 08/11/2025 (sábado) e 09/11/2025 (domingo) o Aqua Park está aberto e tem ingressos disponíveis em todas as categorias!\n\nQuer garantir seu ingresso para um desses dias? Se sim, me fala para qual deles e quais tipos de ingresso você deseja! 😃"
+    },
+    {
+      "role": "user",
+      "content": "Ah, que bom! Pode ser para o dia 08/11/2025 mesmo!\n\nVou precisar de: 1 adulto, 1 gestante e 2 idosos. 😊"
+    },
+    {
+      "role": "assistant",
+      "content": "Perfeito, Edman! Para o dia 08/11/2025, você selecionou:\n\n- 1 ingresso adulto: R$ 275,00\n- 1 ingresso gestante: R$ 160,00\n- 2 ingressos idosos: R$ 160,00 cada\n\nAntes de prosseguir, que tal conhecer as Cabanas do Aqua Park? São espaços exclusivos pra descansar e curtir com todo conforto, bem pertinho das atrações! Quer ver opções de cabanas ou seguir com só os ingressos mesmo? 😄"
+    },
+    {
+      "role": "user",
+      "content": "Não, obrigada! Só os ingressos mesmo, por favor. 😉"
+    },
+    {
+      "role": "assistant",
+      "content": "Perfeito! Já anotei aqui: 1 adulto, 1 gestante e 2 idosos para o dia 08/11/2025. 😊\n\nAgora, vou te pedir algumas informações para garantir a reserva dos seus ingressos. Primeiro, por favor, me informe seu nome completo."
+    },
+    {
+      "role": "user",
+      "content": "Meu nome é Edman Smart. 😉"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótimo, Edman! Agora, preciso do seu número de celular com DDI e DDD, por favor. (Exemplo: 55DDXXXXXXXXX) 😊"
+    },
+    {
+      "role": "user",
+      "content": "É 554501152449. 😊"
+    },
+    {
+      "role": "assistant",
+      "content": "Perfeito, Edman! Agora me informe seu e-mail, por favor. (Lembrando que precisa ter “@”) 😊"
+    },
+    {
+      "role": "user",
+      "content": "farzquwn@smarttalks.com.br, por favor! 😊"
+    },
+    {
+      "role": "assistant",
+      "content": "Pode me enviar o seu CPF, por gentileza? Assim garanto a reserva dos seus ingressos para você! 😊"
+    },
+    {
+      "role": "user",
+      "content": "É 011.524.493-03. 😉"
+    },
+    {
+      "role": "assistant",
+      "content": "Tudo certo, Edman! Agora confira seu pedido antes de seguir para o pagamento:\n\n- Data: 08/11/2025  \n- 1 ingresso adulto: R$ 275,00  \n- 1 ingresso gestante: R$ 160,00  \n- 2 ingressos idosos: R$ 160,00 cada  \n- Nome: Edman Smart  \n- Celular: 554501152449  \n- E-mail: farzquwn@smarttalks.com.br  \n- CPF: 011.524.493-03  \n\nEstá tudo correto ou deseja corrigir alguma informação antes de eu gerar o link de pagamento? 😁"
+    },
+    {
+      "role": "user",
+      "content": "Tudo certo! Pode gerar o link. Vou querer pagar com Pix, por favor. 😉"
+    },
+    {
+      "role": "assistant",
+      "content": "Prontinho, Edman! Sua reserva foi feita com sucesso. Para finalizar, é só acessar o link abaixo e efetuar o pagamento via Pix. O link é válido por 24 horas, combinado?\n\nhttps://pay.smarttalks.ai/68fb6822bbf6353f55867a1e\n\nDepois do pagamento, seus ingressos estão garantidos para o dia 08/11/2025! Se precisar de algo mais, é só avisar. Te vejo no Beach Park! 🌊🏖️😉"
+    }
+  ]
+}

@@ -9,7 +9,6 @@ from threading import Thread, Lock
 from flask import Flask, request, jsonify
 from locust import HttpUser, task, events, constant_pacing
 from pyngrok import ngrok
-from google import genai
 from dotenv import load_dotenv
 import requests as req
 from config import (
@@ -23,9 +22,21 @@ from utils.generate_user_data import OptimizedUserData
 # Load environment variables
 load_dotenv()
 
+# Load fixed user messages from file
+FIXED_USER_MESSAGES = []
+try:
+    with open('fixed_conversation/user_messages.txt', 'r', encoding='utf-8') as f:
+        FIXED_USER_MESSAGES = json.load(f)
+    print(f"✅ Loaded {len(FIXED_USER_MESSAGES)} fixed user messages")
+except FileNotFoundError:
+    print("❌ Error: fixed_conversation/user_messages.txt not found!")
+    FIXED_USER_MESSAGES = ["Olá"]  # Fallback
+except json.JSONDecodeError as e:
+    print(f"❌ Error parsing user_messages.txt: {e}")
+    FIXED_USER_MESSAGES = ["Olá"]  # Fallback
+
 # Configuration Constants
-MAX_ITERATIONS = 20  # 15 iterations = 30 messages (15 user + 15 assistant)
-INITIAL_MESSAGE = "Olá"
+MAX_ITERATIONS = len(FIXED_USER_MESSAGES) if FIXED_USER_MESSAGES else 20
 
 # Configuração de logging
 # Create logs folder if it doesn't exist
@@ -132,12 +143,6 @@ def save_test_results():
         total_iterations = sum(c['iterations'] for c in conversation_results)
         total_messages = sum(c['total_messages'] for c in conversation_results)
         total_time = sum(c['total_time_ms'] for c in conversation_results)
-        total_cost = sum(c['cost'] for c in conversation_results)
-        
-        # Gemini token totals
-        total_gemini_input = sum(c['gemini_input_tokens'] for c in conversation_results)
-        total_gemini_output = sum(c['gemini_output_tokens'] for c in conversation_results)
-        
         # Calculate averages
         avg_time = total_time / total_conversations if total_conversations > 0 else 0
         avg_iterations = total_iterations / total_conversations if total_conversations > 0 else 0
@@ -155,18 +160,8 @@ def save_test_results():
             'avg_messages_per_conversation': round(avg_messages, 2),
             'total_time_ms': round(total_time, 0),
             'avg_time_per_conversation_ms': round(avg_time, 0),
-            'gemini_tokens': {
-                'model': 'gemini-2.5-flash',
-                'total_input_tokens': total_gemini_input,
-                'total_output_tokens': total_gemini_output,
-                'total_tokens': total_gemini_input + total_gemini_output,
-                'cost_usd': round(total_cost, 6),
-                'pricing': {
-                    'input_per_1m_tokens': '$0.30',
-                    'output_per_1m_tokens': '$2.50'
-                }
-            },
-            'total_cost_usd': round(total_cost, 6)
+            'mode': 'fixed_messages',
+            'fixed_messages_count': len(FIXED_USER_MESSAGES)
         }
         
         # Create logs folder if it doesn't exist
@@ -208,7 +203,7 @@ def save_test_results():
             logger.info(f"📈 Total iterations: {total_iterations} (avg: {summary['avg_iterations_per_conversation']})")
             logger.info(f"💬 Total messages: {total_messages} (avg: {summary['avg_messages_per_conversation']})")
             logger.info(f"⏱️  Total time: {total_time/1000:.1f}s (avg: {avg_time/1000:.1f}s per conversation)")
-            logger.info(f"💰 Total cost: ${total_cost:.6f}")
+            logger.info(f"📝 Mode: Fixed messages ({len(FIXED_USER_MESSAGES)} messages)")
             logger.info(f"💾 Results saved to: {output_file}")
             logger.info("=" * 80)
             
@@ -250,7 +245,7 @@ def on_locust_quit(environment, **kwargs):
 
 
 class VoyagerUser(HttpUser):
-    """Usuário virtual que simula uma conversa completa com Voyager via Gemini"""
+    """Usuário virtual que simula uma conversa completa com Voyager usando mensagens fixas"""
     
     # URL da API Voyager
     host = VOYAGER_API_URL
@@ -261,9 +256,8 @@ class VoyagerUser(HttpUser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.base_session_id = None
-        self.gemini_client = None
-        self.gemini_chat = None
         self.conversation_completed = False  # Flag to ensure only one conversation per user
+        self.message_index = 0  # Track current position in fixed messages
         
         # Generate unique user ID and data
         global user_id_counter
@@ -276,72 +270,9 @@ class VoyagerUser(HttpUser):
         logger.info(f"👤 User {self.user_id} created - Name: {self.user_data['nome']}, Phone: {self.user_data['telefone']}, Email: {self.user_data['email']}, CPF: {self.user_data['cpf_formatted']}")
         
     def on_start(self):
-        """Inicializa o cliente Gemini quando o usuário começa"""
-        try:
-            # Randomly select one of the three personas for this user
-            self.persona_file = f'personas/persona_{random.randint(1,3)}.txt'
-            
-            # Load the selected persona
-            try:
-                with open(self.persona_file, 'r') as p:
-                    persona_content = p.read()
-            except FileNotFoundError:
-                logger.error(f"❌ Persona file not found: {self.persona_file}")
-                persona_content = ""
-            
-            # Print user data before replacement
-            print(f"\n📋 User data for replacement - Phone: {self.user_data['telefone']}, Email: {self.user_data['email']}, CPF: {self.user_data['cpf_formatted']}")
-            
-            # Customize persona with generated user data based on persona file
-            # Note: CPF in personas is unformatted (numbers only), but we replace with formatted version
-            customized_persona = persona_content
-
-            if self.persona_file == 'personas/persona_1.txt':
-                customized_persona = customized_persona.replace("5531988776655", self.user_data['telefone'])
-                customized_persona = customized_persona.replace("kataryna.smart@smarttalks.ai", self.user_data['email'])
-                customized_persona = customized_persona.replace("87325940548", self.user_data['cpf_formatted'])
-            elif self.persona_file == 'personas/persona_2.txt':
-                customized_persona = customized_persona.replace("5521987654321", self.user_data['telefone'])
-                customized_persona = customized_persona.replace("talliz.smart@smarttalks.ai", self.user_data['email'])
-                customized_persona = customized_persona.replace("12345678901", self.user_data['cpf_formatted'])
-            elif self.persona_file == 'personas/persona_3.txt':
-                customized_persona = customized_persona.replace("5511976543210", self.user_data['telefone'])
-                customized_persona = customized_persona.replace("edman.smart@smarttalks.ai", self.user_data['email'])
-                customized_persona = customized_persona.replace("98765432100", self.user_data['cpf_formatted'])
-            else:
-                logger.error(f"❌ Unknown persona file: {self.persona_file}")
-                return
-            
-            # Print the final customized persona for debugging
-            print("=" * 80)
-            print(f"🎭 FINAL CUSTOMIZED PERSONA for user {self.user_id}:")
-            print("=" * 80)
-            print(customized_persona)
-            print("=" * 80)
-            print()
-            
-            # Store client as instance variable to prevent it from being closed
-            self.gemini_client = genai.Client(
-                api_key=os.environ.get('GOOGLE_API_KEY') or os.environ.get('GEMINI_API_KEY')
-            )
-            self.gemini_chat = self.gemini_client.chats.create(
-                model="gemini-2.5-flash",
-                config=genai.types.GenerateContentConfig(system_instruction=customized_persona)
-            )
-            logger.info(f"✅ Gemini chat session created for user {self.user_id} with persona: {self.persona_file} and customized data")
-        except Exception as e:
-            logger.error(f"❌ Error creating Gemini session: {e}")
-            self.gemini_chat = None
-            self.gemini_client = None
-    
-    def on_stop(self):
-        """Clean up Gemini client when user stops"""
-        try:
-            if hasattr(self, 'gemini_client') and self.gemini_client:
-                self.gemini_client.close()
-                logger.info("✅ Gemini client closed")
-        except Exception as e:
-            logger.error(f"⚠️  Error closing Gemini client: {e}")
+        """Initialize user session"""
+        logger.info(f"🚀 User {self.user_id} starting with {len(FIXED_USER_MESSAGES)} fixed messages")
+        logger.info(f"📋 User data - Phone: {self.user_data['telefone']}, Email: {self.user_data['email']}, CPF: {self.user_data['cpf_formatted']}")
     
     def wait_for_webhook(self, session_id, timeout=WEBHOOK_TIMEOUT):
         """
@@ -403,7 +334,7 @@ class VoyagerUser(HttpUser):
         
         return extracted
     
-    def save_conversation_log(self, conversation_data, gemini_input_tokens, gemini_output_tokens, total_cost):
+    def save_conversation_log(self, conversation_data):
         """
         Save individual conversation to JSON file
         """
@@ -417,7 +348,7 @@ class VoyagerUser(HttpUser):
         timestamp = time.strftime('%d_%m_%y_%H_%M_%S')
         output_file = os.path.join(logs_dir, f"conversation_{short_session}_{timestamp}.json")
         
-        # Build conversation log similar to voyager_chat.py
+        # Build conversation log
         log_data = {
             'summary': {
                 'session_id': conversation_data['session_id'],
@@ -428,29 +359,8 @@ class VoyagerUser(HttpUser):
                 'total_messages': conversation_data['total_messages'],
                 'timestamp': conversation_data['timestamp'],
                 'total_time_ms': conversation_data['total_time_ms'],
-                'voyager_tokens': {
-                    'model': 'gpt-4 (assumed)',
-                    'input_tokens': 0,
-                    'output_tokens': 0,
-                    'total_tokens': 0,
-                    'cost_usd': 0.0,
-                    'pricing': {
-                        'input_per_1m_tokens': '$2.00',
-                        'output_per_1m_tokens': '$8.00'
-                    }
-                },
-                'gemini_tokens': {
-                    'model': 'gemini-2.5-flash',
-                    'input_tokens': gemini_input_tokens,
-                    'output_tokens': gemini_output_tokens,
-                    'total_tokens': gemini_input_tokens + gemini_output_tokens,
-                    'cost_usd': round(total_cost, 6),
-                    'pricing': {
-                        'input_per_1m_tokens': '$0.30',
-                        'output_per_1m_tokens': '$2.50'
-                    }
-                },
-                'total_cost_usd': round(total_cost, 6)
+                'mode': 'fixed_messages',
+                'fixed_messages_used': len(FIXED_USER_MESSAGES)
             },
             'messages': conversation_data['messages']
         }
@@ -534,15 +444,15 @@ class VoyagerUser(HttpUser):
     
     @task
     def run_complete_conversation(self):
-        """Runs a complete conversation between Gemini and Voyager"""
+        """Runs a complete conversation using fixed messages"""
         
         # Only run one conversation per user
         if self.conversation_completed:
             # User already completed their conversation, just wait
             return
         
-        if not self.gemini_chat:
-            logger.error("❌ Gemini chat not initialized, skipping conversation")
+        if not FIXED_USER_MESSAGES:
+            logger.error("❌ No fixed messages loaded, skipping conversation")
             self.conversation_completed = True
             return
         
@@ -552,12 +462,7 @@ class VoyagerUser(HttpUser):
         # Initialize conversation tracking
         conversation_messages = []
         iteration_count = 0
-        current_message = INITIAL_MESSAGE
         found_link = False
-        
-        # Token tracking
-        gemini_input_tokens = 0
-        gemini_output_tokens = 0
         
         conversation_start_time = time.time()
         
@@ -567,11 +472,15 @@ class VoyagerUser(HttpUser):
         logger.info(f"🎬 Starting conversation - Base Session ID: {self.base_session_id}")
         
         try:
-            # Main conversation loop
-            while iteration_count < MAX_ITERATIONS and not found_link:
+            # Main conversation loop - iterate through fixed messages
+            while self.message_index < len(FIXED_USER_MESSAGES) and not found_link:
                 iteration_count += 1
                 
-                logger.info(f"🔄 Iteration {iteration_count}/{MAX_ITERATIONS} - Session: {self.base_session_id}")
+                # Get current message from fixed list
+                current_message = FIXED_USER_MESSAGES[self.message_index]
+                self.message_index += 1
+                
+                logger.info(f"🔄 Iteration {iteration_count}/{len(FIXED_USER_MESSAGES)} - Session: {self.base_session_id}")
                 
                 # A. Send message to Voyager
                 logger.info(f"📤 Sending to Voyager (iteration {iteration_count}): {current_message[:100]}...")
@@ -633,82 +542,6 @@ class VoyagerUser(HttpUser):
                 if found_link:
                     break
                 
-                # D. Get the last assistant message to send to Gemini
-                last_voyager_message = voyager_messages[-1]['content'] if voyager_messages else ""
-                
-                if not last_voyager_message:
-                    logger.error(f"❌ No assistant message to send to Gemini (iteration {iteration_count})")
-                    break
-                
-                logger.info(f"🤖 Sending to Gemini (iteration {iteration_count}): {last_voyager_message[:100]}...")
-                
-                # E. Send to Gemini (with retry on failure)
-                max_gemini_retries = 3
-                gemini_success = False
-                
-                for retry_attempt in range(max_gemini_retries):
-                    try:
-                        gemini_start = time.time()
-                        logger.info(f"⏳ Sending message to Gemini (attempt {retry_attempt + 1}/{max_gemini_retries})")
-                        gemini_response = self.gemini_chat.send_message(last_voyager_message)
-                        gemini_message = gemini_response.text
-                        gemini_time = (time.time() - gemini_start) * 1000
-                        logger.info(f"✅ Got Gemini response in {gemini_time/1000:.1f}s")
-                        
-                        # Extract Gemini token usage
-                        if hasattr(gemini_response, 'usage_metadata') and gemini_response.usage_metadata:
-                            gemini_input_tokens += getattr(gemini_response.usage_metadata, 'prompt_token_count', 0)
-                            gemini_output_tokens += getattr(gemini_response.usage_metadata, 'candidates_token_count', 0)
-                        
-                        # Fire custom event for Gemini
-                        events.request.fire(
-                            request_type="GEMINI",
-                            name="Gemini Response",
-                            response_time=gemini_time,
-                            response_length=len(gemini_message),
-                            exception=None,
-                            context={}
-                        )
-                        
-                        logger.info(f"✅ Gemini responded (iteration {iteration_count}): {gemini_message[:100]}...")
-                        gemini_success = True
-                        break  # Success, exit retry loop
-                        
-                    except Exception as e:
-                        if retry_attempt < max_gemini_retries - 1:
-                            # Not the last attempt, wait and retry
-                            logger.warning(f"⚠️  Gemini API error (attempt {retry_attempt + 1}/{max_gemini_retries}): {e}")
-                            logger.info(f"   Waiting 1 second before retry...")
-                            time.sleep(1)
-                        else:
-                            # Last attempt failed
-                            logger.error(f"❌ Gemini API error (all {max_gemini_retries} attempts failed): {e}")
-                            logger.error(f"   Iteration: {iteration_count}, Messages so far: {len(conversation_messages)}")
-                            events.request.fire(
-                                request_type="GEMINI",
-                                name="Gemini Response",
-                                response_time=0,
-                                response_length=0,
-                                exception=e,
-                                context={}
-                            )
-                
-                # End conversation if Gemini failed after all retries
-                if not gemini_success:
-                    print(f"❌ GEMINI FAILED AFTER RETRIES (iteration {iteration_count}) - Breaking conversation")
-                    logger.error(f"❌ Gemini failed after {max_gemini_retries} retries (iteration {iteration_count}) - Ending conversation")
-                    break
-                
-                # F. Check for HTTP link in Gemini response
-                gemini_links = re.findall(r'https?://[^\s]+', gemini_message)
-                if gemini_links:
-                    found_link = True
-                    logger.info(f"🎉 HTTP link found in Gemini message!")
-                    break
-                
-                # G. Prepare next iteration
-                current_message = gemini_message
-                
                 # Small delay between iterations
                 time.sleep(0.5)
             
@@ -717,26 +550,21 @@ class VoyagerUser(HttpUser):
             if found_link:
                 print(f"✅ CONVERSATION ENDED: Link found (iteration {iteration_count})")
                 logger.info(f"✅ Conversation ended: Link found (iteration {iteration_count})")
-            elif iteration_count >= MAX_ITERATIONS:
-                print(f"⚠️  CONVERSATION ENDED: Max iterations reached ({iteration_count}/{MAX_ITERATIONS})")
-                logger.warning(f"⚠️  Conversation ended: Max iterations reached ({iteration_count}/{MAX_ITERATIONS})")
+            elif self.message_index >= len(FIXED_USER_MESSAGES):
+                print(f"⚠️  CONVERSATION ENDED: All messages sent ({iteration_count}/{len(FIXED_USER_MESSAGES)})")
+                logger.warning(f"⚠️  Conversation ended: All messages sent ({iteration_count}/{len(FIXED_USER_MESSAGES)})")
             else:
-                print(f"⚠️  CONVERSATION ENDED: Broke early at iteration {iteration_count}/{MAX_ITERATIONS}")
-                logger.warning(f"⚠️  Conversation ended: Broke early at iteration {iteration_count}/{MAX_ITERATIONS}")
+                print(f"⚠️  CONVERSATION ENDED: Broke early at iteration {iteration_count}/{len(FIXED_USER_MESSAGES)}")
+                logger.warning(f"⚠️  Conversation ended: Broke early at iteration {iteration_count}/{len(FIXED_USER_MESSAGES)}")
             print(f"{'='*80}\n")
             
             # Conversation complete
             total_conversation_time = (time.time() - conversation_start_time) * 1000
             
-            # Calculate costs
-            gemini_input_cost = (gemini_input_tokens / 1_000_000) * 0.30
-            gemini_output_cost = (gemini_output_tokens / 1_000_000) * 2.50
-            total_cost = gemini_input_cost + gemini_output_cost
-            
             logger.info(
                 f"✅ Conversation complete - Session: {self.base_session_id} - "
                 f"Iterations: {iteration_count} - Messages: {len(conversation_messages)} - "
-                f"Time: {total_conversation_time:.0f}ms - Cost: ${total_cost:.6f} - "
+                f"Time: {total_conversation_time:.0f}ms - "
                 f"Link found: {found_link}"
             )
             
@@ -755,9 +583,6 @@ class VoyagerUser(HttpUser):
                 'total_messages': len(conversation_messages),
                 'found_link': found_link,
                 'total_time_ms': round(total_conversation_time, 0),
-                'gemini_input_tokens': gemini_input_tokens,
-                'gemini_output_tokens': gemini_output_tokens,
-                'cost': total_cost,
                 'messages': conversation_messages
             }
             
@@ -765,7 +590,7 @@ class VoyagerUser(HttpUser):
                 conversation_results.append(conversation_data)
             
             # Save individual conversation log
-            self.save_conversation_log(conversation_data, gemini_input_tokens, gemini_output_tokens, total_cost)
+            self.save_conversation_log(conversation_data)
             
             # Mark conversation as completed
             self.conversation_completed = True
@@ -787,7 +612,6 @@ class VoyagerUser(HttpUser):
             
             # Store failed conversation result
             total_conversation_time = (time.time() - conversation_start_time) * 1000
-            error_cost = (gemini_input_tokens / 1_000_000) * 0.30 + (gemini_output_tokens / 1_000_000) * 2.50
             
             conversation_data = {
                 'session_id': self.base_session_id,
@@ -803,9 +627,6 @@ class VoyagerUser(HttpUser):
                 'total_messages': len(conversation_messages),
                 'found_link': False,
                 'total_time_ms': round(total_conversation_time, 0),
-                'gemini_input_tokens': gemini_input_tokens,
-                'gemini_output_tokens': gemini_output_tokens,
-                'cost': error_cost,
                 'error': str(e),
                 'messages': conversation_messages
             }
@@ -814,7 +635,7 @@ class VoyagerUser(HttpUser):
                 conversation_results.append(conversation_data)
             
             # Save individual conversation log even for failed conversations
-            self.save_conversation_log(conversation_data, gemini_input_tokens, gemini_output_tokens, error_cost)
+            self.save_conversation_log(conversation_data)
             
             # Mark conversation as completed even on error
             self.conversation_completed = True

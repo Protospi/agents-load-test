@@ -43,13 +43,13 @@ DEFAULT_MESSAGE = "Olá"
 MESSAGE_TYPE = "text"
 
 # Timeout para aguardar resposta do webhook (segundos)
-WEBHOOK_TIMEOUT = 30
+WEBHOOK_TIMEOUT = 120
 
 # Intervalo de polling para verificar webhook (segundos)
 POLLING_INTERVAL = 0.5
 
 # Tempo de espera entre requisições de um mesmo usuário (segundos)
-USER_WAIT_TIME = 1
+USER_WAIT_TIME = 3
 
 # ============================================================================
 # CONFIGURAÇÕES DE LOG

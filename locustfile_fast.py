@@ -5,13 +5,17 @@ import re
 import os
 import json
 import random
+import asyncio
 from threading import Thread, Lock
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from locust import HttpUser, task, events, constant_pacing
 from pyngrok import ngrok
 from google import genai
 from dotenv import load_dotenv
 import requests as req
+import uvicorn
+from uvicorn import Config, Server
 from config import (
     VOYAGER_API_URL, VOYAGER_ENDPOINT, CHANNEL_ID, CLIENT_DOMAIN,
     FLASK_PORT, FLASK_HOST, WEBHOOK_PATH, DEFAULT_MESSAGE, MESSAGE_TYPE,
@@ -22,6 +26,7 @@ from utils.generate_user_data import OptimizedUserData
 
 # Load environment variables
 load_dotenv()
+
 
 # Configuration Constants
 MAX_ITERATIONS = 20  # 15 iterations = 30 messages (15 user + 15 assistant)
@@ -34,7 +39,7 @@ if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 
 # Setup logging to both file and console
-log_file = os.path.join(logs_dir, f"load_test_{time.strftime('%d_%m_%y_%H_%M')}.log")
+log_file = os.path.join(logs_dir, f"load_test_fast_{time.strftime('%d_%m_%y_%H_%M')}.log")
 
 # Configure root logger
 logging.basicConfig(
@@ -46,8 +51,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Personas will be loaded randomly for each user in on_start method
 
 # Armazenamento de respostas dos webhooks
 webhook_responses = {}
@@ -61,41 +64,57 @@ results_lock = Lock()
 user_id_counter = 0
 user_id_lock = Lock()
 
-# Flask app para receber webhooks
-flask_app = Flask(__name__)
-flask_app.logger.setLevel(logging.WARNING)
+# FastAPI app para receber webhooks
+fastapi_app = FastAPI()
 
 # Variável global para armazenar a URL do ngrok
 ngrok_url = None
 
 
-@flask_app.route('/responses/<session_id>', methods=['POST'])
-def receive_webhook(session_id):
+@fastapi_app.post('/responses/{session_id}')
+async def receive_webhook(session_id: str, request: Request):
     """Recebe webhook com a resposta da Voyager API"""
     try:
-        payload = request.get_json()
+        payload = await request.json()
         
         with responses_lock:
             webhook_responses[session_id] = payload
         
         logger.info(f"✅ Webhook recebido para session_id: {session_id}")
         logger.debug(f"Payload: {payload}")
+        print(f"✅ FastAPI: Webhook recebido para session_id: {session_id}")
         
-        return jsonify({"status": "received"}), 200
+        return JSONResponse(content={"status": "received"}, status_code=200)
     except Exception as e:
         logger.error(f"❌ Erro ao processar webhook: {e}")
-        return jsonify({"error": str(e)}), 500
+        print(f"❌ FastAPI: Erro ao processar webhook: {e}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@flask_app.route('/health', methods=['GET'])
-def health_check():
+@fastapi_app.get('/health')
+async def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "ok", "responses_count": len(webhook_responses)}), 200
+    return JSONResponse(content={"status": "ok", "responses_count": len(webhook_responses)}, status_code=200)
 
 
-def start_flask():
-    """Inicia o servidor Flask em uma thread separada"""
-    flask_app.run(host=FLASK_HOST, port=FLASK_PORT, debug=False, use_reloader=False)
+def start_fastapi():
+    """Inicia o servidor FastAPI em uma thread separada"""
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    # Configure uvicorn server
+    config = Config(
+        app=fastapi_app,
+        host=FLASK_HOST,
+        port=FLASK_PORT,
+        log_level="error",
+        loop="asyncio"
+    )
+    server = Server(config)
+    
+    # Run the server in this thread's event loop
+    loop.run_until_complete(server.serve())
 
 
 def start_ngrok():
@@ -113,8 +132,11 @@ def start_ngrok():
     ngrok_url = tunnel.public_url
     
     logger.info("=" * 80)
-    logger.info(f"🌐 NGROK URL: {ngrok_url}")
+    logger.info(f"🌐 NGROK URL (FastAPI): {ngrok_url}")
     logger.info("=" * 80)
+    print("=" * 80)
+    print(f"🌐 NGROK URL (FastAPI): {ngrok_url}")
+    print("=" * 80)
     
     return ngrok_url
 
@@ -175,7 +197,7 @@ def save_test_results():
             os.makedirs(logs_dir)
         
         # Save to JSON file
-        output_file = os.path.join(logs_dir, f"load_test_results_{time.strftime('%d_%m_%y_%H_%M')}.json")
+        output_file = os.path.join(logs_dir, f"load_test_fast_results_{time.strftime('%d_%m_%y_%H_%M')}.json")
         
         # Create summary list without full message history (already saved in individual files)
         conversations_summary = []
@@ -201,7 +223,7 @@ def save_test_results():
                 }, f, indent=2, ensure_ascii=False)
             
             logger.info("=" * 80)
-            logger.info("📊 TEST RESULTS SUMMARY")
+            logger.info("📊 TEST RESULTS SUMMARY (FASTAPI)")
             logger.info("=" * 80)
             logger.info(f"✅ Total conversations: {total_conversations}")
             logger.info(f"🎯 Successful (link found): {successful_conversations} ({summary['success_rate']})")
@@ -219,21 +241,26 @@ def save_test_results():
 @events.init.add_listener
 def on_locust_init(environment, **kwargs):
     """Evento executado quando o Locust é iniciado"""
-    logger.info("🚀 Iniciando sistema de teste de carga...")
+    logger.info("🚀 Iniciando sistema de teste de carga com FastAPI...")
+    print("🚀 Iniciando sistema de teste de carga com FastAPI...")
     
-    # Inicia Flask em thread separada
-    logger.info("📡 Iniciando servidor Flask...")
-    flask_thread = Thread(target=start_flask, daemon=True)
-    flask_thread.start()
+    # Inicia FastAPI em thread separada
+    logger.info("📡 Iniciando servidor FastAPI...")
+    print("📡 Iniciando servidor FastAPI...")
+    fastapi_thread = Thread(target=start_fastapi, daemon=True)
+    fastapi_thread.start()
     
-    # Aguarda Flask iniciar
+    # Aguarda FastAPI iniciar
+    print("⏳ Aguardando FastAPI inicializar (2 segundos)...")
     time.sleep(2)
     
     # Inicia ngrok
     logger.info("🔗 Iniciando túnel ngrok...")
+    print("🔗 Iniciando túnel ngrok...")
     start_ngrok()
     
     logger.info("✅ Sistema pronto para receber requisições!")
+    print("✅ Sistema pronto para receber requisições!")
 
 
 @events.quitting.add_listener
@@ -415,7 +442,7 @@ class VoyagerUser(HttpUser):
         # Generate filename with timestamp and session_id (short version)
         short_session = conversation_data['session_id'][:8]
         timestamp = time.strftime('%d_%m_%y_%H_%M_%S')
-        output_file = os.path.join(logs_dir, f"conversation_{short_session}_{timestamp}.json")
+        output_file = os.path.join(logs_dir, f"conversation_fast_{short_session}_{timestamp}.json")
         
         # Build conversation log similar to voyager_chat.py
         log_data = {
@@ -480,6 +507,9 @@ class VoyagerUser(HttpUser):
             "webhook": webhook_url
         }
         
+        print(f"📤 FastAPI: Sending to Voyager with webhook URL: {webhook_url}")
+        logger.info(f"📤 Sending to Voyager with webhook URL: {webhook_url}")
+        
         start_time = time.time()
         
         try:
@@ -492,6 +522,7 @@ class VoyagerUser(HttpUser):
             
             if response.status_code not in [200, 201, 202]:
                 logger.error(f"❌ Voyager API error - Status: {response.status_code}")
+                print(f"❌ FastAPI: Voyager API error - Status: {response.status_code}")
                 return None
             
             # Wait for webhook response
@@ -562,7 +593,7 @@ class VoyagerUser(HttpUser):
         conversation_start_time = time.time()
         
         print(f"\n{'='*80}")
-        print(f"🎬 STARTING CONVERSATION - Base Session ID: {self.base_session_id}")
+        print(f"🎬 STARTING CONVERSATION (FastAPI) - Base Session ID: {self.base_session_id}")
         print(f"{'='*80}\n")
         logger.info(f"🎬 Starting conversation - Base Session ID: {self.base_session_id}")
         
@@ -618,16 +649,13 @@ class VoyagerUser(HttpUser):
                 for msg in voyager_messages:
                     conversation_messages.append(msg)
                 
-                # C. Check for payment link in Voyager response
+                # C. Check for HTTP link in Voyager response
                 for msg in voyager_messages:
                     voyager_links = re.findall(r'https?://[^\s]+', msg['content'])
-                    for link in voyager_links:
-                        if link.startswith('https://pay.smarttalks.ai'):
-                            found_link = True
-                            logger.info(f"🎉 Payment link found in Voyager message: {link}")
-                            logger.debug(f"Full message with link: {msg['content']}")
-                            break
-                    if found_link:
+                    if voyager_links:
+                        found_link = True
+                        logger.info(f"🎉 HTTP link found in Voyager message: {voyager_links[0]}")
+                        logger.debug(f"Full message with link: {msg['content']}")
                         break
                 
                 if found_link:
