@@ -14,7 +14,7 @@ VOYAGER_API_URL = "https://voyager.g121.io"
 VOYAGER_ENDPOINT = "/v1/webhooks/widget"
 
 # ID do canal (channel) a ser testado
-CHANNEL_ID = "68e4464832ec9940d9993a12"
+CHANNEL_ID = "68f0e77c3f7d49fb33475023"
 
 # Domínio do identificador do cliente
 CLIENT_DOMAIN = "@stw.ai"

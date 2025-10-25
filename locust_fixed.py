@@ -1,10 +1,11 @@
+# locust -f locust_fixed.py --users 3 --spawn-rate 1 --headless
+
 import logging
 import time
 import uuid
 import re
 import os
 import json
-import random
 from threading import Thread, Lock
 from flask import Flask, request, jsonify
 from locust import HttpUser, task, events, constant_pacing
@@ -23,17 +24,21 @@ from utils.generate_user_data import OptimizedUserData
 load_dotenv()
 
 # Load fixed user messages from file
-FIXED_USER_MESSAGES = []
-try:
-    with open('fixed_conversation/user_messages.txt', 'r', encoding='utf-8') as f:
-        FIXED_USER_MESSAGES = json.load(f)
-    print(f"✅ Loaded {len(FIXED_USER_MESSAGES)} fixed user messages")
-except FileNotFoundError:
-    print("❌ Error: fixed_conversation/user_messages.txt not found!")
-    FIXED_USER_MESSAGES = ["Olá"]  # Fallback
-except json.JSONDecodeError as e:
-    print(f"❌ Error parsing user_messages.txt: {e}")
-    FIXED_USER_MESSAGES = ["Olá"]  # Fallback
+FIXED_USER_MESSAGES = [
+  "Olá",
+  "Bom dia! Edman Smart 😉",
+  "Sim, claro! Pode enviar 😊",
+  "Quero comprar ingressos do Aqua Park, por favor! 🎟️🌴",
+  "Ah, legal! 🤩 Poderia consultar a disponibilidade das datas pra mim, por favor?",
+  "Uhm, para o segundo sábado de novembro, por favor! Que seria 08/11/25 ou 09/11/2025, né? 🤔",
+  "Ah, que bom! Pode ser para o dia 08/11/2025 mesmo!\n\nVou precisar de: 1 adulto, 1 gestante e 2 idosos. 😊",
+  "Não, obrigada! Só os ingressos mesmo, por favor. 😉",
+  "Meu nome é Edman Smart. 😉",
+  "É 554501152449. 😊",
+  "farzquwn@smarttalks.com.br, por favor! 😊",
+  "É 011.524.493-03. 😉",
+  "Tudo certo! Pode gerar o link. Vou querer pagar com Pix, por favor. 😉"
+]
 
 # Configuration Constants
 MAX_ITERATIONS = len(FIXED_USER_MESSAGES) if FIXED_USER_MESSAGES else 20
